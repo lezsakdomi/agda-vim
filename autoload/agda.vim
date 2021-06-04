@@ -636,6 +636,15 @@ if !exists('g:agda#default_glyphs')
     \   'Mfy': '𝔶',
     \   'Mfz': '𝔷',
     \})
+    
+    
+  " Custom chars
+  call extend(g:agda#default_glyphs, {
+    \   'leq': '≤',
+    \   'geq': '≥',
+    \   'neq': '≠',
+    \   'null': '∅',
+    \})
 
 
   lockvar g:agda#default_glyphs
