@@ -3,6 +3,60 @@ set cpo&vim
 
 source ~/.vim/plugged/agda-vim/autoload/agda.vim
 func! AgdaComplete(at, filter, prefix)
+	let completions = []
+
+	" Search for possible completions on a:filter
+	for [sequence, symbol] in items(g:agda#glyphs)
+		if sequence[:len(a:filter)-1] == a:filter
+			call add(completions, {
+				\ 'word': a:prefix.symbol,
+				\ 'abbr': printf('%s %s * %s', a:prefix.symbol,
+					\ a:filter, sequence[len(a:filter):]),
+				\ })
+		endif
+
+		" On exact match, insert to the top
+		if sequence == a:filter
+			call insert(completions, {
+				\ 'word': a:prefix.symbol,
+				\ 'abbr': printf('%s %s ✓', a:prefix.symbol, sequence),
+				\ })
+		endif
+	endfor
+
+	" In case of an "invalid" character backtrace for last match
+	" and offer the rest as plaintext
+	if empty(completions)
+		let hitSymbol = ""
+		let hitSequence = a:filter
+		while hitSymbol == "" && hitSequence != ""
+			" TODO merge with matching strategy above
+			for [sequence, symbol] in items(g:agda#glyphs)
+				if sequence[:len(hitSequence)-1] == hitSequence
+					let hitSymbol = symbol
+					break
+				endif
+			endfor
+			if hitSymbol == ""
+				let hitSequence = hitSequence[:-2]
+			endif
+		endwhile
+
+		call insert(completions, {
+			\ 'word': a:prefix.hitSymbol.a:filter[len(hitSequence):],
+			\ 'abbr': printf('%s %s ✗ %s', a:prefix.hitSymbol,
+				\ hitSequence, a:filter[len(hitSequence):]),
+			\ })
+	endif
+
+	" Offer a:filter as plain text
+	call add(completions, {
+		\ 'word': a:prefix.'\'.a:filter,
+		\ })
+
+	" Show completions
+	call complete(a:at, completions)
+
 	echo '[AgdaComplete] '.a:prefix.'\'.a:filter
 
 	" Read a new character
@@ -11,9 +65,8 @@ func! AgdaComplete(at, filter, prefix)
 
 	" Handle backspace
 	if gotChar is# "\<BS>"
-		" TODO show completion popup again
 		if empty(a:filter) && empty(a:prefix)
-			return ""
+			return "\<BS>"
 		elseif empty(a:filter)
 			return AgdaComplete(a:at, a:filter, strcharpart(a:prefix, 0, strchars(a:prefix)-1))
 		else
@@ -27,53 +80,9 @@ func! AgdaComplete(at, filter, prefix)
 
 	" \ starts a new sequence, no need for pressing esc
 	elseif (a:filter != "") && (c == '\')
-		" TODO merge with the matching strategy below
-		let hit = ""
-		for [sequence, symbol] in items(g:agda#glyphs)
-			if sequence[:len(a:filter)-1] == a:filter
-				let hit = symbol
-				break
-			endif
-		endfor
-		return AgdaComplete(a:at, "", a:prefix.hit)
+		return AgdaComplete(a:at, "", completions[0]['word'])
 
 	else
-		let completions = []
-
-		" Search for possible completions on a:filter.c
-		for [sequence, symbol] in items(g:agda#glyphs)
-			if sequence[:len(a:filter)] == a:filter.c
-				call add(completions, {'word': a:prefix.symbol, 'abbr': printf('%s %s', a:prefix.symbol, sequence)})
-			endif
-
-			" On exact match, insert to the top
-			if sequence == a:filter.c
-				call insert(completions, {'word': a:prefix.symbol, 'abbr': printf('%s %s ←', a:prefix.symbol, sequence)})
-			endif
-		endfor
-
-		" In case of an "invalid" character backtrace for last match
-		" and offer the rest as plaintext
-		if empty(completions)
-			let hitSymbol = ""
-			let hitSequence = a:filter.c
-			while hitSequence != "" && hitSymbol == ""
-				for [sequence, symbol] in items(g:agda#glyphs)
-					if sequence[:len(hitSequence)-1] == hitSequence
-						let hitSymbol = symbol
-						break
-					endif
-				endfor
-				let hitSequence = hitSequence[:-2]
-			endwhile
-			call insert(completions, a:prefix.hitSymbol.(a:filter.c)[len(hitSequence)+1:])
-		endif
-
-		" Offer a:filter.c as plain text
-		call add(completions, a:prefix.'\'.a:filter.c)
-
-		call complete(a:at, completions)
-
 		let r = AgdaComplete(a:at, a:filter.c, a:prefix)
 		"if r == " "
 		"   return completions[0]['word']
